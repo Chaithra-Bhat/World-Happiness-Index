@@ -1,0 +1,532 @@
+---
+title: "Final Project: World Happiness Index"
+author: "Apoorva Rajan, Arushi Bohra, Chaithra Bhat, Chin-Yu Tang, Shreeya Patil"
+output:
+  pdf_document:
+    fig_height: 3
+    fig_width: 5
+  html_document:
+    fig_height: 3
+    fig_width: 5
+  word_document:
+    fig_height: 3
+    fig_width: 5
+---
+
+```{r include=FALSE}
+# Some customization.  You can alter or delete as desired (if you know what you are doing).
+require(mosaic)
+# This changes the default colors in lattice plots.
+trellis.par.set(theme=theme.mosaic())  
+
+# knitr settings to control how R chunks work.
+require(knitr)
+opts_chunk$set(
+  tidy=FALSE,     # display code as typed
+  size="small"    # slightly smaller font for code
+)
+# This loads the mosaic data sets.  (Could be deleted if you are not using them.)
+require(mosaicData)                
+```
+
+```{r}
+library(mosaic)
+library(Metrics)
+library(caret)
+library(readr)
+library(readxl)
+library(dplyr)
+library(ggplot2)
+library(skimr)
+library(tidyr)
+library(reshape2)
+library(ggpubr)
+library(stringr)
+library(e1071)
+library(pROC)
+library(corrplot)
+library(GGally)
+```
+
+```{r}
+happy15_df = read.csv ("archive/2015.csv")
+happy16_df = read.csv ("archive/2016.csv")
+happy17_df = read.csv ("archive/2017.csv")
+happy18_df = read.csv ("archive/2018.csv")
+happy19_df = read.csv ("archive/2019.csv")
+head(happy15_df)
+head(happy16_df)
+head(happy17_df)
+head(happy18_df)
+head(happy19_df)
+```
+
+```{r}
+happy18_df=plyr::rename(happy18_df, replace = c( "Country.or.region"="Country", 
+                                  "Overall.rank"="Happiness.Rank" ,
+                                  "GDP.per.capita"="Economy..GDP.per.Capita.",
+                                  "Healthy.life.expectancy"="Health..Life.Expectancy.",
+                                  "Freedom.to.make.life.choices"="Freedom",
+                                  "Perceptions.of.corruption"="Trust..Government.Corruption.",
+                                  "Social.support"="Family",
+                                  "Score"="Happiness.Score"))
+```
+
+```{r}
+colnames(happy18_df)
+```
+
+```{r}
+happy19_df=plyr::rename(happy19_df, replace = c( "Country.or.region"="Country", 
+                                  "Overall.rank"="Happiness.Rank" ,
+                                  "GDP.per.capita"="Economy..GDP.per.Capita.",
+                                  "Healthy.life.expectancy"="Health..Life.Expectancy.",
+                                  "Freedom.to.make.life.choices"="Freedom",
+                                  "Perceptions.of.corruption"="Trust..Government.Corruption.",
+                                  "Social.support"="Family",
+                                  "Score"="Happiness.Score"))
+colnames(happy19_df)
+```
+
+```{r}
+
+colnames(happy15_df)
+```
+
+```{r}
+
+colnames(happy16_df)
+```
+
+```{r}
+happy15_df<-cbind(Year=2015,happy15_df)
+
+happy16_df<-cbind(Year=2016,happy16_df)
+
+happy17_df<-cbind(Year=2017,happy17_df)
+
+happy18_df<-cbind(Year=2018,happy18_df)
+
+happy19_df<-cbind(Year=2019,happy19_df)
+```
+
+```{r}
+happy18_df$Trust..Government.Corruption. = as.numeric(happy18_df$Trust..Government.Corruption.)
+```
+
+```{r}
+str(happy18_df)
+```
+
+```{r}
+happy15_16<-dplyr::bind_rows(happy15_df,happy16_df)
+
+happy15_16_17<-dplyr::bind_rows(happy15_16,happy17_df)
+
+happy18_19<-dplyr::bind_rows(happy18_df,happy19_df)
+
+df<-dplyr::bind_rows(happy18_19,happy15_16_17)
+
+head(df)
+```
+
+```{r}
+df$Happiness.Rank  = as.numeric(df$Happiness.Rank )
+
+str(df)
+```
+
+```{r}
+colSums(is.na(df))
+```
+
+```{r}
+df = subset(df, select = -c(Lower.Confidence.Interval,Upper.Confidence.Interval,Dystopia.Residual,Standard.Error,Whisker.high,Whisker.low))
+
+colSums(is.na(df))
+```
+
+```{r}
+df$Trust..Government.Corruption.[is.na(df$Trust..Government.Corruption.)] <- median(df$Trust..Government.Corruption., na.rm = T)
+
+colSums(is.na(df))
+```
+
+```{r}
+aggregate(df$Country, by=list(df$Year), FUN=length)
+```
+
+```{r}
+Country_2015 = subset(df, Year == 2015)$Country
+Country_2016 = subset(df, Year == 2016)$Country
+Country_2017 = subset(df, Year == 2017)$Country
+Country_2018 = subset(df, Year == 2018)$Country
+Country_2019 = subset(df, Year == 2019)$Country
+```
+
+```{r}
+common_country =intersect(intersect(intersect(intersect(Country_2015,
+Country_2016),Country_2017),Country_2018),Country_2019)
+length(common_country)
+```
+
+```{r}
+df1 = subset(df,Country %in% common_country)
+print(paste("The amount of rows in the dataset is: ",dim(df1)[1]))
+print(paste("The amount of columns in the dataset is: ",dim(df1)[2]))
+```
+
+```{r}
+common_region <- unique(subset(df1, Region!="NA", c(Country, Region)))
+
+head(common_country)
+```
+
+```{r}
+assign_region <- function(x){
+  Region <- common_region$Region[common_region$Country == x]
+}
+
+for(country in common_country)
+      df1$Region[df1$Country == country] <- assign_region(country)
+```
+
+```{r}
+write_csv(df1, path = "World Happiness Data (2015-2019)_cleaned.csv")
+```
+
+```{r}
+head(df1)
+```
+
+**View the statistical view of the combined data set.**
+
+```{r}
+skimr::skim_without_charts(df1)
+```
+
+## Exploratory Data Analysis
+
+Next we plot the graph for the top 10 happiest countries in every year from 2015 to 2019
+
+```{r}
+df1 %>%
+  filter(Year == 2015) %>%
+  arrange(-Happiness.Score) %>%
+  slice_head(n=10) %>%
+  ggplot(aes(reorder(Country, Happiness.Score), Happiness.Score)) +
+  geom_point(colour = "darkgreen", size = 3) +
+  theme(text=element_text(size=10)) + 
+  coord_flip() +
+  labs(title = "Top 10 happiest countries in 2015", x = "")
+```
+
+```{r}
+df1 %>%
+  filter(Year == 2016) %>%
+  arrange(-Happiness.Score) %>%
+  slice_head(n=10) %>%
+  ggplot(aes(reorder(Country, Happiness.Score), Happiness.Score)) +
+  geom_point(colour = "darkred", size = 3) +
+  theme(text=element_text(size=10)) + 
+  coord_flip() +
+  labs(title = "Top 10 happiest countries in 2016", x = "")
+```
+
+```{r}
+df1 %>%
+  filter(Year == 2017) %>%
+  arrange(-Happiness.Score) %>%
+  slice_head(n=10) %>%
+  ggplot(aes(reorder(Country, Happiness.Score), Happiness.Score)) +
+  geom_point(colour = "darkblue", size = 3) +
+  theme(text=element_text(size=10)) + 
+  coord_flip() +
+  labs(title = "Top 10 happiest countries in 2017", x = "")
+```
+
+```{r}
+df1 %>%
+  filter(Year == 2018) %>%
+  arrange(-Happiness.Score) %>%
+  slice_head(n=10) %>%
+  ggplot(aes(reorder(Country, Happiness.Score), Happiness.Score)) +
+  geom_point(colour = "darkorange", size = 3) +
+  theme(text=element_text(size=10)) + 
+  coord_flip() +
+  labs(title = "Top 10 happiest countries in 2018", x = "")
+```
+
+```{r}
+df1 %>%
+  filter(Year == 2019) %>%
+  arrange(-Happiness.Score) %>%
+  slice_head(n=10) %>%
+  ggplot(aes(reorder(Country, Happiness.Score), Happiness.Score)) +
+  geom_point(colour = "purple", size = 3) +
+  theme(text=element_text(size=10)) + 
+  coord_flip() +
+  labs(title = "Top 10 happiest countries in 2019", x = "")
+```
+
+From the above data, we can observe that in 2015, Switzerland was the happiest country. But it dropped to number two in 2016. Similarly Denmark was the happiest country in 2016, but fell to number two in 2017. Norway was the happiest country in 2017. While Finland was the happiest country in 2018 and 2019.
+
+Now we'll explore the mean happiness score according to the regions of the world, from the year 2015 to 2019, by plotting a box plot.
+
+```{r echo=TRUE, fig.height=5, fig.width=12}
+region_plot <- ggplot(df1 , aes(x = Happiness.Score, y = Region)) +
+  geom_boxplot(aes(fill=Region)) + theme_bw() +
+  theme(axis.text.y = element_text ())
+
+region_plot
+```
+
+From the above plot we see that the top 3 happiest regions are Australia and New Zealand, North America and Western Europe.
+
+The next graph is regarding the mean happiness score according to the countries, from 2015 to 2019.
+
+```{r}
+df1 %>%
+  group_by(Country) %>%
+  summarise(mscore = mean(Happiness.Score)) %>%
+  arrange(-mscore) %>%
+  slice_head(n=10) %>%
+  
+  ggplot(aes(reorder(Country, mscore), mscore)) +
+  geom_point(color = "blue") +
+  theme_bw() +
+  
+  coord_flip() +
+  labs(x = "Countries", y = "Mean happiness score")
+```
+
+We observe that the top 3 happiest countries are Denmark, Norway and Finland.
+
+Mean happiness score trends of countries by years
+
+```{r}
+country_trend = df1 %>%
+  group_by(Country) %>%
+  summarise(mscore = mean(Happiness.Score)) %>%
+  arrange(-mscore) %>%
+  slice_head(n=10)
+
+country_trend_list = c(country_trend$Country)
+
+df1_happy_country = subset(df1,Country %in% country_trend_list)
+
+ggplot(df1_happy_country,  aes(x = Year,y = Happiness.Score,color = Country))+  geom_line()
+```
+
+Notice that only the happiness score of Finland is increasing dramatically from 2015 to 2019.
+
+Moving on, we'll plot the mean values of all the factors affecting the happiness score.
+
+```{r}
+df1 %>%
+  summarise(gdp = mean(Economy..GDP.per.Capita.),
+            family = mean(Family),
+            life.expectancy = mean(Health..Life.Expectancy.),
+            freedom = mean(Freedom),
+            generosity = mean(Generosity),
+            corruption = mean(Trust..Government.Corruption.)) %>%
+  pivot_longer(c(gdp, family, life.expectancy,freedom,generosity, corruption),
+               names_to = "f", values_to = "value") %>%
+  ggplot(aes(reorder(f, value), value)) +
+  geom_bar(stat = "identity", fill = "darkblue", width = 0.55, alpha = 0.7) +
+  geom_text(aes(label = paste0(round(value, 2)), vjust = -0.5)) +
+  theme_bw() +
+  labs(title = "Mean value of the factors" , y = "", x = "")
+```
+
+The family factor of the happiness score has the highest mean value of 1.09 which indicates that it is the key factor is determining the happiness score.
+
+#### Relationship of Happiness Score with each factor
+
+```{r}
+ggline1 = ggplot(df1, aes(x = Economy..GDP.per.Capita., y = Happiness.Score)) + 
+  geom_point(size = .5, alpha = 0.8, color="darkgreen") +  
+  geom_smooth(method = "lm", fullrange = TRUE) +
+  theme_bw() + labs(title = "Scatter plot of Happiness Score with GDP")
+
+ggline1
+```
+
+```{r}
+ggline2 = ggplot(df1, aes(x = Family, y = Happiness.Score)) + 
+  geom_point(size = .5, alpha = 0.8, color="darkred") +  
+  geom_smooth(method = "lm", fullrange = TRUE) +
+  theme_bw() + labs(title = "Scatter plot of Happiness Score with Family")
+
+ggline2
+```
+
+```{r}
+ggline3 = ggplot(df1, aes(x = Health..Life.Expectancy., y = Happiness.Score)) + 
+  geom_point(size = .5, alpha = 0.8, color="darkorange") +  
+  geom_smooth(method = "lm", fullrange = TRUE) +
+  theme_bw() + labs(title = "Scatter plot of Happiness Score with Life Expectancy")
+
+ggline3
+```
+
+```{r}
+ggline4 = ggplot(df1, aes(x =Freedom, y = Happiness.Score)) + 
+  geom_point(size = .5, alpha = 0.8, color="purple") +  
+  geom_smooth(method = "lm", fullrange = TRUE) +
+  theme_bw() + labs(title = "Scatter plot of Happiness Score with Freedom")
+
+ggline4
+```
+
+```{r}
+ggline5 = ggplot(df1, aes(x = Trust..Government.Corruption., y = Happiness.Score)) + 
+  geom_point(size = .5, alpha = 0.8, color="darkgrey") +  
+  geom_smooth(method = "lm", fullrange = TRUE) +
+  theme_bw() + labs(title = "Scatter plot of Happiness Score with Corruption")
+
+ggline5
+```
+
+```{r}
+ggline6 = ggplot(df1, aes(x = Generosity, y = Happiness.Score)) + 
+  geom_point(size = .5, alpha = 0.8, color="maroon") +  
+  geom_smooth(method = "lm", fullrange = TRUE) +
+  theme_bw() + labs(title = "Scatter plot of Happiness Score with Generosity")
+
+ggline6
+```
+
+#### Correlation using Correlation Matrix Heatmap
+
+```{r echo=TRUE, fig.height=5, fig.width=12, fig.align='center'}
+dataset = select(df1,-c("Year","Country","Happiness.Rank","Region"))
+Num.cols <- sapply(dataset, is.numeric)
+Cor.data <- cor(dataset[, Num.cols])
+
+corrplot(Cor.data, method = 'color') 
+```
+```{r}
+ggcorr(dataset, label = TRUE, label_round = 2, label_size = 3.5, size = 2, hjust = .85) +
+  ggtitle("Correlation Heatmap") +
+  theme(plot.title = element_text(hjust = 0.5))
+```
+```{r}
+range_dif=round((max(dataset$Happiness.Score)-min(dataset$Happiness.Score))/3,3)
+
+low=min(dataset$Happiness.Score)+range_dif
+mid=low+range_dif
+
+print(paste("Range difference in happiness score: ",range_dif))
+print(paste('Upper bound of Low grp',low))
+print(paste('Upper bound of Mid grp',mid))
+print(paste('Upper bound of High grp','max:',max(dataset$Happiness.Score)))
+```
+#### Linear Regression for Happiness Score
+
+```{r}
+set.seed(123) 
+split=0.80
+trainIndex <- createDataPartition(dataset$Happiness.Score, p=split, list=FALSE) 
+data_train <- dataset[ trainIndex,] 
+data_test <- dataset[-trainIndex,]
+
+lm_model = lm(formula = Happiness.Score ~ .,
+               data = data_train)
+
+summary(lm_model)
+```
+The results of the linear regression model show that the model is a good fit for the data. The R-squared value is 0.7805, which means that 78.05% of the variation in happiness scores can be explained by the six independent variables. The adjusted R-squared value is 0.7781, which is slightly lower than the R-squared value. This is because the adjusted R-squared value takes into account the number of independent variables in the model.
+
+The F-statistic is 330.7, which is highly significant. This indicates that the model is a good fit for the data. The p-value for the F-statistic is less than 2.2e-16, which means that the null hypothesis that the model is not a good fit can be rejected.
+
+#### Predict happiness score with data_test
+```{r fig.align='center'}
+y_pred_lm = predict(lm_model, newdata = data_test)
+Actual_lm = data_test$Happiness.Score
+
+Pred_Actual_lm <- as.data.frame(cbind(Prediction = y_pred_lm, Actual = Actual_lm))
+
+
+gg.lm <- ggplot(Pred_Actual_lm, aes(Actual, Prediction )) +
+  geom_point() + theme_bw() + geom_abline() +
+  labs(x = "Actual happiness score",
+       y = "Predicted happiness score")
+gg.lm
+```
+
+```{r}
+colnames(df)
+```
+
+```{r}
+anova_result <- anova(lm_model)
+print(anova_result)
+```
+The p-values for all six factors - economy, family, health, freedom, generosity, and trust in government are less than 0.05, which is the standard threshold for statistical significance. This means that we can reject the null hypothesis. The F-values for the six factors are quite large, which indicates that there is a large difference in the variance of the happiness scores between the six factors.
+
+The results of the ANOVA can be interpreted in a number of ways. One way is to say that the six factors have a significant impact on happiness. Another way to interpret the results is to say that the happiness scores are not evenly distributed across the six factors. This suggests that some factors are more important than others for happiness.
+
+The results of the ANOVA can be used to inform policy decisions. For example, if the government wants to increase happiness, it could focus on policies that improve the economy, family, health, freedom, generosity, and trust in government.
+
+
+
+```{r}
+summary(lm_model)
+```
+The R-squared value is 0.7805, which means that 78.05% of the variation in happiness scores can be explained by the six independent variables. The adjusted R-squared value is 0.7781, which is slightly lower than the R-squared value. This is because the adjusted R-squared value takes into account the number of independent variables in the model.
+
+The F-statistic is 330.7, which is highly significant. This indicates that the model is a good fit for the data. The p-value for the F-statistic is less than 2.2e-16, which means that the null hypothesis that the model is not a good fit can be rejected.
+
+The residuals are the differences between the observed happiness scores and the predicted happiness scores. The residuals are normally distributed with a mean of 0 and a standard deviation of 0.535. This indicates that the model is a good fit for the data.
+
+```{r}
+anova_Region <- aov(Happiness.Score ~ Region, data = df)
+summary(anova_Region)
+anova_Generosity <- aov(Happiness.Score ~ Generosity, data = df)
+summary(anova_Generosity)
+anova_Year <- aov(Happiness.Score ~ Year, data = df)
+summary(anova_Year)
+anova_Country <- aov(Happiness.Score ~ Country, data = df)
+summary(anova_Country)
+anova_Family <- aov(Happiness.Score ~ Family, data = df)
+summary(anova_Family)
+anova_Freedom <- aov(Happiness.Score ~ Freedom, data = df)
+summary(anova_Freedom)
+anova_HLE <- aov(Happiness.Score ~ Health..Life.Expectancy., data = df)
+summary(anova_HLE)
+anova_EGP <- aov(Happiness.Score ~ Economy..GDP.per.Capita., data = df)
+summary(anova_EGP)
+anova_TGC <- aov(Happiness.Score ~ Trust..Government.Corruption., data = df)
+summary(anova_TGC)
+```
+Here is the interpretation of the results of the ANOVA:
+
+Region: There is a statistically significant difference in the mean happiness scores between the different regions. This means that the happiness scores are not evenly distributed across the regions.
+
+Generosity: There is a statistically significant difference in the mean happiness scores between countries with different levels of generosity. This means that countries with higher levels of generosity tend to have higher happiness scores.
+
+Year: There is no statistically significant difference in the mean happiness scores between different years. This means that the happiness scores have not changed significantly over time.
+
+Country: There is a statistically significant difference in the mean happiness scores between different countries. This means that the happiness scores are not evenly distributed across the countries.
+
+Family: There is a statistically significant difference in the mean happiness scores between countries with different levels of family support. This means that countries with higher levels of family support tend to have higher happiness scores.
+
+Freedom: There is a statistically significant difference in the mean happiness scores between countries with different levels of freedom. This means that countries with higher levels of freedom tend to have higher happiness scores.
+
+Health: There is a statistically significant difference in the mean happiness scores between countries with different levels of health. This means that countries with higher levels of health tend to have higher happiness scores.
+
+Economy: There is a statistically significant difference in the mean happiness scores between countries with different levels of economic development. This means that countries with higher levels of economic development tend to have higher happiness scores.
+
+Trust in government: There is a statistically significant difference in the mean happiness scores between countries with different levels of trust in government. This means that countries with higher levels of trust in government tend to have higher happiness scores.
+
+Overall, the results of the ANOVA suggest that there are a number of factors that can influence happiness, including region, generosity, family support, freedom, health, economic development, and trust in government.
+
+```{r}
+posthoc_result_Region <- TukeyHSD(anova_Region)
+print(posthoc_result_Region)
+```
+```{r}
+posthoc_result_Country <- TukeyHSD(anova_Country)
+print(posthoc_result_Country)
+```
